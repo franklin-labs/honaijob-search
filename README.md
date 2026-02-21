@@ -173,7 +173,7 @@ Limitations de cette approche sans LLM :
 
 ```bash
 git clone https://github.com/franklin-labs/honaijob-search.git
-cd honaijob-search/crawller
+cd honaijob-search
 ```
 
 ### (Optionnel) Créer un environnement virtuel
