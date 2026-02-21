@@ -4,7 +4,7 @@ Ce fichier décrit le fonctionnement de l’outil défini dans main.py (crawler 
 -->
 
 # HonaïJob-search 1.0
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/franklin-labs/honaijob-search)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Async](https://img.shields.io/badge/Async-asyncio%20%2B%20aiohttp-5c8df6)](#-fonctionnement)
 [![Search](https://img.shields.io/badge/Search-DuckDuckGo-DD6829)](#-fonctionnement)
