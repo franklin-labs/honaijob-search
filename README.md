@@ -77,7 +77,7 @@ Flux global :
 
 L’outil **ne fait appel à aucun LLM externe** (type ChatGPT / GPT-4, API cloud, etc.).
 
-À la place, il utilise :
+À la place, dans la version actuelle, il utilise :
 
 - un **modèle d’embedding local** (`sentence-transformers/all-MiniLM-L6-v2`) chargé via
   `SentenceTransformer`,
@@ -172,7 +172,7 @@ Limitations de cette approche sans LLM :
 ### Cloner le projet
 
 ```bash
-git clone <votre-url-git> honaijob-search
+git clone https://github.com/franklin-labs/honaijob-search.git
 cd honaijob-search/crawller
 ```
 
@@ -422,6 +422,19 @@ L’outil est un **prototype** et présente des limitations importantes :
   - plafonner le nombre de requêtes parallèles,
   - journaliser plus finement les erreurs par domaine.
 
+- **4. Introduire un petit modèle local pour remplacer `keywords.json`**
+  - concevoir un **petit modèle de classification ou de tagging**, léger, capable de tourner sur CPU,
+  - l’entraîner à partir d’exemples annotés (requêtes, extraits de pages) pour prédire :
+    - le domaine (emploi / tech / autre),
+    - les compétences principales,
+    - éventuellement le type de contrat,
+  - utiliser ce modèle pour remplacer ou compléter :
+    - l’interprétation de l’intention (`infer_query_intent`),
+    - la détection de compétences et de contrat,
+  - conserver la philosophie du projet :
+    - modèle **local**, sans dépendance à une API distante,
+    - suffisamment léger pour tourner sur un **CPU standard**, même sur une machine modeste.
+
 ### Priorité moyenne
 
 - **4. Qualité du texte extrait**
@@ -445,9 +458,15 @@ L’outil est un **prototype** et présente des limitations importantes :
   - permettre de pousser les résultats vers un outil externe (Notion, Airtable, etc.),
   - exposer une petite API HTTP locale (FastAPI) pour déclencher la recherche depuis d’autres services.
 
-> Remarque : l’ajout facultatif d’un LLM pour le **re-ranking** ou le **résumé d’offres**
-> pourrait faire partie d’une branche expérimentale, tout en conservant le cœur du
-> système basé sur des embeddings et des heuristiques locales.
+- **8. Expérimenter un petit LLM local sur CPU**
+  - évaluer un **petit modèle de langage** (taille réduite) capable de tourner sur un PC basique uniquement avec le CPU,
+  - l’utiliser en option pour des tâches ciblées :
+    - re-ranking plus fin des offres les plus pertinentes,
+    - génération de courts résumés d’offres,
+    - reformulation de la requête utilisateur pour explorer des variantes,
+  - conserver l’architecture actuelle comme base :
+    - embeddings + heuristiques restent le cœur robuste et reproductible,
+    - le petit LLM vient en surcouche facultative, activable/désactivable selon les ressources de la machine.
 
 ---
 
