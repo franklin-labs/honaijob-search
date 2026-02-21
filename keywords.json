@@ -1,0 +1,7 @@
+{
+  "employment_keywords": ["job", "jobs", "emploi", "offre", "offres", "poste", "postes", "recrutement", "candidature", "stage", "alternance", "cdi", "cdd", "etudiant", "etudiants", "étudiant", "internship", "interim", "intérim"],
+  "tech_job_keywords": ["cron", "kubernetes", "systemd", "spark", "yarn", "slurm", "batch"],
+  "location_keywords": ["paris", "lyon", "marseille", "toulouse", "bordeaux", "lille", "nantes"],
+  "time_keywords": ["hier", "aujourdhui", "aujourd'hui", "moins dun jour", "24h", "24 heures", "7 jours"],
+  "skill_keywords": ["python", "data", "sql", "pandas", "spark", "machine", "ml"]
+}
