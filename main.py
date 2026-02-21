@@ -216,6 +216,10 @@ async def main():
             skills_str,
             excerpt,
         )
+        print(f"{r.title}")
+        print(f"{r.url}")
+        print("------------------------------------------------------------------------")
+
 
     console.print(table)
 

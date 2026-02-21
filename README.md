@@ -1,42 +1,210 @@
+<!--
+README du projet HonaïJob-search.
+Ce fichier décrit le fonctionnement de l’outil défini dans main.py (crawler sémantique asynchrone).
+-->
+
 # HonaïJob-search 1.0
 
-HonaïJob-search est un **crawler sémantique asynchrone** qui :
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![Async](https://img.shields.io/badge/Async-asyncio%20%2B%20aiohttp-5c8df6)](#-fonctionnement)
+[![Search](https://img.shields.io/badge/Search-DuckDuckGo-DD6829)](#-fonctionnement)
+[![LLM](https://img.shields.io/badge/LLM-aucun_utilisé-success)](#-fonctionnement-sans-llm)
+[![Status](https://img.shields.io/badge/Status-Prototype-orange)](#-defauts-actuels)
 
-- interroge DuckDuckGo pour récupérer une liste d’URLs,
-- télécharge le contenu des pages en parallèle,
-- vectorise la requête et les pages avec un modèle `sentence-transformers`,
+HonaïJob-search est un **prototype de crawler sémantique asynchrone** pour explorer des
+**offres d’emploi / stages tech** à partir d’une simple requête texte (Python).
+
+Il interroge DuckDuckGo, télécharge les pages en parallèle, extrait le texte, calcule une
+similarité sémantique avec la requête, puis affiche les résultats les plus pertinents
+dans un tableau richement formaté dans le terminal.
+
+---
+
+## Navigation
+
+Utilisez ces “onglets” cliquables pour naviguer rapidement dans le README :
+
+| Navigation | |
+|-----------|--|
+| [Accueil](#accueil) | [Fonctionnement](#fonctionnement) |
+| [Installation](#installation) | [Utilisation](#utilisation) |
+| [Architecture](#architecture-technique) | [Défis rencontrés](#défis-rencontrés) |
+| [Défauts actuels](#analyse-des-défauts-actuels) | [Perspectives d’amélioration](#perspectives-damélioration) |
+
+---
+
+## Accueil
+
+HonaïJob-search 1.0 est un outil en ligne de commande qui :
+
+- récupère une liste d’URLs via DuckDuckGo (librairie **`ddgs`**),
+- télécharge les pages de manière asynchrone avec **`aiohttp`**,
+- extrait le contenu textuel avec **`BeautifulSoup`**,
+- encode la requête utilisateur et le contenu avec **`sentence-transformers`**,
 - calcule une **similarité cosinus** entre la requête et chaque page,
-- renvoie les résultats les plus proches de l’intention utilisateur (emploi / stages / compétences…).
+- applique un filtrage métier (mots-clés emploi / compétences / contrat),
+- affiche un **tableau coloré** des résultats dans le terminal via **`rich`**.
 
-Il est principalement pensé pour explorer des **offres d’emploi / stages tech** à partir de mots-clés.
+Usage principal : trouver rapidement des pages web susceptibles de contenir des
+**offres d’emploi ou de stage tech** liées à une requête donnée (ville, techno, type de contrat, etc.).
 
-## Fonctionnalités principales
+---
 
-- Saisie interactive de la requête directement dans le terminal.
-- Chargement de mots-clés de contexte depuis `keywords.json` :
-  - mots liés à l’emploi / aux stages,
-  - mots liés aux jobs tech,
-  - lieux, périodes, compétences.
-- Requête DuckDuckGo (via `ddgs`) pour trouver des URLs pertinentes.
-- Téléchargement asynchrone des pages avec `aiohttp`.
-- Vectorisation de la requête et des pages avec `sentence-transformers`.
-- Score de similarité cosinus (via `numpy`) et tri des résultats par pertinence.
+## Fonctionnement
+
+### Vue d’ensemble
+
+Le cœur du système se trouve dans [`main.py`](./main.py) et repose sur :
+
+- une classe **`EmbeddingModel`** pour générer des embeddings de phrases,
+- une structure **`QueryIntent`** pour représenter l’intention de la requête,
+- une structure **`SemanticResult`** pour stocker les résultats scorés,
+- une classe **`HonaïJobCrawler`** qui orchestre la recherche,
+- une fonction **`main()`** qui gère l’interface CLI et l’affichage.
+
+Flux global :
+
+1. L’utilisateur saisit une requête dans le terminal.
+2. Le crawler interroge DuckDuckGo pour obtenir une liste d’URLs.
+3. Les pages sont téléchargées en parallèle (asyncio + aiohttp).
+4. Le texte est extrait (paragraphes, listes, titres…).
+5. La requête et chaque page sont encodées en vecteurs via `SentenceTransformer`.
+6. Une **similarité cosinus** et des **heuristiques de mots-clés** sont calculées.
+7. Les résultats sont triés par score décroissant.
+8. Un tableau synthétique est affiché dans le terminal (titre, URL, score, contrat, skills, extrait).
+
+### Fonctionnement sans LLM
+
+L’outil **ne fait appel à aucun LLM externe** (type ChatGPT / GPT-4, API cloud, etc.).
+
+À la place, il utilise :
+
+- un **modèle d’embedding local** (`sentence-transformers/all-MiniLM-L6-v2`) chargé via
+  `SentenceTransformer`,
+- des **mots-clés métier** chargés depuis un fichier `keywords.json`,
+- des **heuristiques de scoring** simples basées sur la similarité cosinus et la présence de mots-clés.
+
+#### Mots-clés métier (keywords.json)
+
+Le fichier `keywords.json` contient des listes de mots-clés qui décrivent votre “métier” ou votre contexte
+de recherche (emploi, technologies, lieux, types de contrat, compétences, etc.).
+
+Au démarrage, ces listes sont chargées en mémoire et converties en ensembles Python :
+
+- `EMPLOYMENT_KEYWORDS` : mots liés à l’emploi et aux offres (emploi, offre, stage, alternance…),
+- `TECH_JOB_KEYWORDS` : mots décrivant des postes ou domaines techniques (développeur, backend, data…),
+- `LOCATION_KEYWORDS` : villes ou contextes géographiques (paris, lyon, remote…),
+- `TIME_KEYWORDS` : termes liés au temps ou à la fraîcheur (aujourd’hui, récent, nouveau…),
+- `SKILL_KEYWORDS` : compétences techniques (python, django, react, sql…),
+- `CONTRACT_KEYWORDS` : types de contrat (cdi, cdd, freelance, stage, alternance, intérim…).
+
+Ces ensembles sont ensuite utilisés pour :
+
+- interpréter l’intention de la requête (fonction `infer_query_intent`),
+- filtrer les pages qui ne parlent pas du tout d’emploi ou de compétences,
+- détecter et afficher, pour chaque page, les compétences et le type de contrat repérés.
+
+Pourquoi ce choix ?
+
+- ✅ **Indépendance vis-à-vis des API externes** : pas de clé API, pas de coût variable.
+- ✅ **Reproductibilité** : à environnement égal, même requête ⇒ mêmes scores.
+- ✅ **Simplicité de déploiement** : tout tourne en local, dans un simple script Python.
+- ✅ **Contrôle explicite du comportement** : pas de génération de texte “boîte noire”.
+
+Limitations de cette approche sans LLM :
+
+- ❌ **Compréhension limitée** : pas de raisonnement complexe ni de reformulation fine.
+- ❌ **Pas de résumé ni d’extraction avancée** : seule une portion brute de texte est affichée.
+- ❌ **Adaptation au domaine réduite** : la pertinence dépend fortement de la qualité des mots-clés dans `keywords.json`.
+
+### Algorithmes et méthodes utilisées
+
+1. **Recherche de pages**  
+   - Utilisation de **`ddgs.DDGS().text(...)`** pour exécuter une recherche DuckDuckGo.
+   - Filtrage des URLs internes DuckDuckGo.
+
+2. **Téléchargement asynchrone**  
+   - Création d’une **`aiohttp.ClientSession`**.
+   - Lancement concurrent de requêtes HTTP via `asyncio.gather`.
+   - Timeout par requête (15s) et gestion des erreurs réseau avec logs.
+
+3. **Extraction de texte**  
+   - Parsing HTML avec **`BeautifulSoup`**.
+   - Extraction du texte sur les balises `p`, `li`, `article`, `h1`, `h2`, `h3`.
+   - Nettoyage du texte (espaces, séparateurs).
+
+4. **Prétraitement et embeddings**
+   - Normalisation du texte : minuscules, suppression des accents (`unicodedata`), trimming.
+   - Tokenisation simple alphanumérique.
+   - Encodage des textes (requête + contenu tronqué) en vecteurs à l’aide de
+     **`SentenceTransformer`** exécuté dans un thread via `asyncio.to_thread`.
+
+5. **Scoring sémantique**
+   - Calcul de la **similarité cosinus** avec **`numpy`** entre vecteurs requête / page.
+   - Calcul d’un ratio de **mots-clés de la requête présents dans la page**.
+   - Détection de termes de récence (`"24h"`, `"aujourd'hui"`, `"hier"`, `"récent"`, `"nouveau"`).
+   - Score final combiné :
+
+     ```text
+     score = 0.5 * similarité_cosinus
+           + 0.4 * ratio_mots_clés
+           + 0.1 * bonus_si_date_récente
+     ```
+
+6. **Détection de compétences et type de contrat**
+   - Détection de **skills** : intersection entre les tokens de la page et `SKILL_KEYWORDS`.
+   - Détection de **contrat** : premier token présent dans `CONTRACT_KEYWORDS`.
+
+7. **Affichage**
+   - Construction d’un tableau `rich.Table` :
+     - colonnes : `Titre`, `URL`, `Score`, `Contrat`, `Skills`, `Extrait`.
+   - Affichage dans une `rich.Console`.
+
+---
 
 ## Installation
 
-Depuis le répertoire `crawller` :
+### Prérequis
+
+- Python **3.10+** (recommandé)
+- Accès réseau sortant (pour interroger DuckDuckGo et télécharger les pages)
+
+### Cloner le projet
+
+```bash
+git clone <votre-url-git> honaijob-search
+cd honaijob-search/crawller
+```
+
+### (Optionnel) Créer un environnement virtuel
+
+```bash
+python -m venv .venv
+
+# Linux / macOS
+source .venv/bin/activate
+
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+```
+
+### Installer les dépendances
+
+Installation directe :
 
 ```bash
 pip install aiohttp ddgs sentence-transformers numpy beautifulsoup4 rich
 ```
 
-(Optionnel) Vous pouvez aussi mettre ces dépendances dans un `requirements.txt` puis faire :
+Vous pouvez également utiliser un `requirements.txt` (à compléter si besoin) :
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Ensuite, assurez-vous d’avoir un fichier `keywords.json` à la racine du projet, par exemple :
+### Configurer les mots-clés (keywords.json)
+
+À la racine du dossier `crawller`, créer un fichier `keywords.json` si ce n’est pas déjà fait :
 
 ```json
 {
@@ -49,158 +217,250 @@ Ensuite, assurez-vous d’avoir un fichier `keywords.json` à la racine du proje
 }
 ```
 
+Ce fichier alimente les constantes :
+
+- `EMPLOYMENT_KEYWORDS`
+- `TECH_JOB_KEYWORDS`
+- `LOCATION_KEYWORDS`
+- `TIME_KEYWORDS`
+- `SKILL_KEYWORDS`
+- `CONTRACT_KEYWORDS`
+
+chargées au démarrage du script.
+
+---
+
 ## Utilisation
 
-Depuis le répertoire `crawller` :
+### Lancer le crawler
+
+Depuis le dossier `crawller` :
 
 ```bash
 python main.py
 ```
 
-Le script va :
+Le programme :
 
-1. Vous demander une requête texte (mots-clés, ville, techno).
-2. Interroger DuckDuckGo pour récupérer une liste d’URLs (20 résultats par défaut dans `main`).
-3. Télécharger les pages de manière asynchrone.
-4. Calculer des embeddings pour la requête et chaque page.
-5. Calculer la similarité cosinus et trier les résultats.
-6. Afficher dans la console un tableau enrichi (via `rich`) contenant :
-   - le titre de la page,
-   - l’URL,
-   - la similarité (score),
-   - le type de contrat détecté (si présent),
-   - les compétences détectées,
-   - un court extrait de contenu.
+1. Demande une requête de recherche dans le terminal.
+2. Si vous laissez la ligne vide, il utilisera par défaut :  
+   `offre de stage étudiant Paris python`.
+3. Lance la recherche, télécharge les pages, calcule les scores.
+4. Affiche un tableau trié par pertinence.
 
-## Guide pas à pas (sous forme d’onglets)
+### Exemple de requêtes
 
-<div>
-
-<details open>
-<summary><strong>Onglet 1 — Préparer l’environnement Python</strong></summary>
-
-- Installer Python 3.10+.
-- (Optionnel) Créer un environnement virtuel :
-
-  ```bash
-  python -m venv .venv
-  # Linux / macOS
-  source .venv/bin/activate
-  # Windows
-  .venv\Scripts\activate
-  ```
-
-- Se placer dans le dossier du projet :
-
-  ```bash
-  cd crawller
-  ```
-
-</details>
-
-<details>
-<summary><strong>Onglet 2 — Installer les dépendances</strong></summary>
-
-- Installer les bibliothèques nécessaires :
-
-  ```bash
-  pip install aiohttp ddgs sentence-transformers numpy beautifulsoup4 rich
-  # ou, si vous avez renseigné un requirements.txt :
-  pip install -r requirements.txt
-  ```
-
-- Vérifier que le fichier `keywords.json` existe à la racine et contient vos mots-clés.
-
-</details>
-
-<details>
-<summary><strong>Onglet 3 — Lancer une recherche</strong></summary>
-
-- Lancer le programme :
-
-  ```bash
-  python main.py
-  ```
-
-- Saisir une requête, par exemple :
-
-  ```text
-  offre de stage étudiant Paris python
-  ```
-
-- Attendre le téléchargement des pages et le calcul des scores sémantiques.
-
-</details>
-
-<details>
-<summary><strong>Onglet 4 — Lire et interpréter les résultats</strong></summary>
-
-- Chaque ligne du tableau correspond à une page trouvée.
-- La colonne **Score** combine :
-  - une similarité cosinus entre l’embedding de la requête et celui de la page,
-  - la présence de mots-clés (emploi, compétences, etc.),
-  - une légère bonification si le texte semble récent.
-- Plus le score est élevé, plus l’offre est pertinente pour votre requête.
-
-</details>
-
-</div>
-
-## Affichage des résultats dans le terminal
-
-L’affichage utilise la bibliothèque **`rich`** pour construire un tableau coloré (`Console` + `Table`).
-
-Les colonnes affichées sont :
-- **Titre** : titre HTML de la page ou, à défaut, l’URL.
-- **URL** : lien direct vers la ressource.
-- **Score** : score de similarité agrégé.
-- **Contrat** : type de contrat détecté (stage, alternance, CDD, CDI, etc.).
-- **Skills** : compétences repérées dans le texte.
-- **Extrait** : début du contenu de la page.
-
-Pour installer uniquement ce qui concerne l’affichage des résultats :
-
-```bash
-pip install rich
+```text
+offre de stage étudiant Paris python
+alternance data engineer lyon
+emploi développeur backend remote django
 ```
 
-Dans la pratique, `rich` est déjà inclus dans la commande d’installation complète ci-dessus.
+### Exemple de sortie (simplifiée)
 
-## Structure du code
+```text
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  Résultats de recherche pour : offre stage python           ║
+╠══════════════╤═════════════════════════════╤═══════╤════════╤═══════╤═══════╣
+║ Titre        │ URL                         │ Score │ Contrat│ Skills│ Extrait
+╟──────────────┼─────────────────────────────┼───────┼────────┼───────┼───────╢
+║ Stage Python │ https://exemple.com/offre…  │ 0.87  │ stage  │ python│ ...   │
+╚══════════════╧═════════════════════════════╧═══════╧════════╧═══════╧═══════╝
+```
 
-| Élément              | Rôle principal                                                                 |
-|----------------------|-------------------------------------------------------------------------------|
-| `EmbeddingModel`     | Enveloppe autour de `SentenceTransformer` pour générer des embeddings async. |
-| `_normalize_text`    | Normalisation simple (minuscule, accents, espaces).                          |
-| `_tokenize`          | Tokenisation basique en mots alphanumériques.                                |
-| `_cosine_similarity` | Calcul de similarité cosinus avec `numpy`.                                   |
-| `QueryIntent`        | Représentation de l’intention de la requête (domaine, lieux, compétences).   |
-| `infer_query_intent` | Déduit le domaine et les mots-clés à partir de `keywords.json`.              |
-| `SemanticResult`     | Structure contenant requête, URL, extrait, embedding, similarité.            |
-| `HonaïJobCrawler`    | Récupère les URLs, télécharge les pages, filtre et score les résultats.      |
-| `main`               | Point d’entrée CLI : lit la requête et affiche le tableau de résultats.      |
+> Remarque : le script écrit également quelques informations dans la sortie standard
+> (`print(title)`, `print(url)`), ce qui permet un debug rapide en plus du tableau `rich`.
 
-## Licence
+---
+
+## Architecture technique
+
+### Vue textuelle
+
+```text
+                ┌────────────────────┐
+                │   Utilisateur CLI  │
+                └─────────┬──────────┘
+                          │ requête texte
+                          ▼
+                ┌────────────────────┐
+                │     main.main()    │
+                └─────────┬──────────┘
+                          │ instancie
+                          ▼
+                ┌────────────────────┐
+                │  HonaïJobCrawler   │
+                └─────────┬──────────┘
+        ┌─────────────────┼──────────────────┐
+        ▼                 ▼                  ▼
+ ┌─────────────┐   ┌───────────────┐   ┌──────────────────┐
+ │ _search_sync│   │ _fetch_page   │   │ _extract_text     │
+ │ (DDGS)      │   │ (aiohttp)     │   │ (BeautifulSoup)   │
+ └─────────────┘   └───────────────┘   └──────────────────┘
+        │                 │                  │
+        └─────────────────┴──────────┬───────┘
+                                     ▼
+                            ┌────────────────┐
+                            │ EmbeddingModel │
+                            │ (SentenceTrans.)│
+                            └────────┬───────┘
+                                     ▼
+                           ┌──────────────────┐
+                           │ _compute_score   │
+                           │ + _detect_skills │
+                           └────────┬─────────┘
+                                    ▼
+                           ┌──────────────────┐
+                           │ SemanticResult   │
+                           └────────┬─────────┘
+                                    ▼
+                           ┌──────────────────┐
+                           │  Affichage rich  │
+                           └──────────────────┘
+```
+
+### Principales classes / fonctions
+
+- `EmbeddingModel` : encapsule `SentenceTransformer` pour produire des embeddings en tâche de fond.
+- `QueryIntent` / `infer_query_intent(...)` : prépare l’intention de la requête (domaine, lieux, skills).
+- `SemanticResult` : structure de données pour les résultats scorés.
+- `HonaïJobCrawler` :
+  - `_search_sync` : interroge DuckDuckGo,
+  - `_fetch_page` : télécharge les pages (async),
+  - `_extract_text` : récupère le texte utile,
+  - `_detect_skills_contract` : repère compétences et type de contrat,
+  - `_compute_score` : combine similarité cosinus, match de mots-clés, récence,
+  - `search` : méthode principale orchestrant l’ensemble.
+- `main()` :
+  - lit la requête utilisateur,
+  - appelle `HonaïJobCrawler.search`,
+  - construit et affiche le tableau `rich`.
+
+---
+
+## Défis rencontrés
+
+Quelques défis clé lors du développement :
+
+- **Asynchronisme réseau**  
+  Gérer plusieurs téléchargements HTTP en parallèle tout en restant robuste aux timeouts
+  et aux erreurs (sites inaccessibles, HTML mal formé, etc.).
+
+- **Extraction de texte générique**  
+  Les pages d’offres sont très hétérogènes (CMS, mise en page, publicités). L’extraction
+  basée sur quelques balises (`p`, `li`, `article`, `h1`, `h2`, `h3`) est un compromis
+  entre simplicité et efficacité, mais ne couvre pas tous les cas.
+
+- **Pertinence sans LLM**  
+  Obtenir des résultats utilisables en se limitant à :
+  - des embeddings statiques,
+  - un score simple,
+  - des mots-clés fournis par l’utilisateur (fichier JSON).
+
+- **Performance des embeddings**  
+  Même si le modèle `all-MiniLM-L6-v2` est léger, encoder un grand nombre de pages
+  reste coûteux. D’où le choix de tronquer le contenu (`text[:1500]`) et d’exécuter
+  l’encodage dans un thread séparé (`asyncio.to_thread`).
+
+- **Détection de compétences et de contrats**  
+  La détection purement lexicale (intersection de sets) est sensible :
+  - à la qualité du texte extrait,
+  - au vocabulaire exact utilisé par les sites.
+
+---
+
+## Analyse des défauts actuels
+
+L’outil est un **prototype** et présente des limitations importantes :
+
+- **Fiabilité de l’extraction HTML**  
+  - certains sites peuvent renvoyer du contenu vide ou obfusqué,
+  - l’outil peut ignorer des offres si le texte est dans des balises non couvertes.
+
+- **Scoring heuristique simpliste**
+  - le score est une combinaison linéaire à 3 termes (`similarité`, `keyword_match`, `date_récente`),
+  - aucun apprentissage supervisé n’est utilisé,
+  - des résultats peu pertinents peuvent malgré tout être bien scorés si les mots-clés
+    sont présents plusieurs fois.
+
+- **Gestion limitée des erreurs**
+  - absence de gestion fine des codes HTTP (403, 429, etc.),
+  - pas de retry / backoff automatique,
+  - pas de limite stricte de concurrence ou de rate limiting.
+
+- **Pas de configuration externe avancée**
+  - les poids de scoring sont codés en dur,
+  - les paramètres (timeout, nombre de résultats, liste de balises HTML à analyser)
+    ne sont pas exposés via arguments CLI ou fichier de configuration.
+
+- **Pas de tests automatisés**
+  - absence de tests unitaires / d’intégration,
+  - aucune garantie de non-régression lors des modifications.
+
+- **Affichage parfois verbeux**
+  - à la fois des `print()` et un tableau `rich` (double sortie),
+  - pas de mode “silencieux” ou “debug” paramétrable.
+
+---
+
+## Perspectives d’amélioration
+
+### Priorité haute
+
+- **1. Rendre la configuration flexible**
+  - exposer les paramètres clés via des options CLI (`argparse`),
+  - introduire un fichier `config.toml` ou `yaml` pour les réglages par défaut,
+  - permettre de définir plusieurs profils de recherche (stage, CDI, freelance…).
+
+- **2. Améliorer le scoring**
+  - ajouter des signaux : longueur du texte, présence d’email / téléphone, mots-clés négatifs,
+  - expérimenter des variantes du score (logarithmes, normalisation par taille de page),
+  - ajouter un petit module de réordonnancement (re-ranking) basé sur des règles.
+
+- **3. Renforcer la robustesse réseau**
+  - implémenter un système de retry exponentiel,
+  - plafonner le nombre de requêtes parallèles,
+  - journaliser plus finement les erreurs par domaine.
+
+### Priorité moyenne
+
+- **4. Qualité du texte extrait**
+  - adapter dynamiquement les balises scannées selon le site,
+  - filtrer les menus, footers, et contenus peu informatifs,
+  - ajouter des heuristiques pour détecter les sections “Description du poste”, “Profil recherché”, etc.
+
+- **5. UX en ligne de commande**
+  - proposer un mode “interactif” (plusieurs requêtes successives dans la même session),
+  - ajouter une option pour exporter les résultats (CSV / JSON),
+  - amélioration du design du tableau (troncature conditionnelle, colonnes optionnelles).
+
+### Priorité basse
+
+- **6. Industrialisation**
+  - packager l’outil en module installable (`pip install honaijob-search`),
+  - fournir une image Docker prête à l’emploi,
+  - intégrer un système de logs configurable (fichiers, JSON, niveaux).
+
+- **7. Intégrations externes**
+  - permettre de pousser les résultats vers un outil externe (Notion, Airtable, etc.),
+  - exposer une petite API HTTP locale (FastAPI) pour déclencher la recherche depuis d’autres services.
+
+> Remarque : l’ajout facultatif d’un LLM pour le **re-ranking** ou le **résumé d’offres**
+> pourrait faire partie d’une branche expérimentale, tout en conservant le cœur du
+> système basé sur des embeddings et des heuristiques locales.
+
+---
+
+## Licence MIT
 
 Ce projet est distribué sous licence **MIT**.
 
-Copyright (c) 2025
+Voir le texte complet de la licence dans ce dépôt si nécessaire.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+---
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+## 🤝 Contributions
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-# honaijob-search
+Les contributions sont les bienvenues (corrections de bugs, amélioration du scoring,
+ajout de nouvelles heuristiques métier, documentation).  
+Proposez une _issue_ ou une _pull request_ avec une description claire de votre changement.
